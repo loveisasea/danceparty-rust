@@ -1,0 +1,22 @@
+[package]
+
+name = "hello_world"
+version = "0.0.1"
+authors = [ "Your name <you@example.com>" ]
+
+[dependencies]
+num = "*"
+rand = "*"
+#time = "*"
+
+[[bin]] 
+name = "dance"
+path = "src/dance/mod.rs"
+
+[[bin]] 
+name = "billionnames"
+path = "src/billionnames/mod.rs"
+
+[[bin]] 
+name = "hello_world"
+path = "src/main.rs"
