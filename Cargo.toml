@@ -9,14 +9,7 @@ num = "*"
 rand = "*"
 #time = "*"
 
+
 [[bin]] 
 name = "dance"
-path = "src/dance/mod.rs"
-
-[[bin]] 
-name = "billionnames"
-path = "src/billionnames/mod.rs"
-
-[[bin]] 
-name = "hello_world"
 path = "src/main.rs"
