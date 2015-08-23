@@ -1,5 +1,5 @@
 extern crate rand;
-//extern crate time;
+extern crate time;
 
 use std::io; 
 use std::sync::{Arc, Mutex}; 
@@ -7,10 +7,13 @@ use std::thread;
 use std::sync::mpsc::{Sender,Receiver,channel}; 
 use std::fmt;
 use rand::distributions::{IndependentSample, Range};
-   
+
+//=============================================================================
+//  舞蹈类型   
+//=============================================================================
 struct DanceType {
-	id   : i32,
-	name : String
+	id   : i32,         //id
+	name : String       //舞蹈名称
 }
  
 
@@ -20,12 +23,15 @@ impl fmt::Display for DanceType {
         Ok(())
     }
 } 
- 
+
+//=============================================================================
+//  领舞者 
+//=============================================================================
 struct Leader{
-	id :i32,
-	dance_confirmed: Vec<i32>,
-	senders: Vec<Arc<Mutex<Sender<Invitation>>>>,
-	receiver: Receiver<InviResult>
+	id :i32,										//id
+	dance_confirmed: Vec<i32>,						//索引是danceType，值是followerId	
+	senders: Vec<Arc<Mutex<Sender<Invitation>>>>,   //所有伴舞接受邀请时对应的发送端
+	receiver: Receiver<InviResult>					//自己接受邀请结果的接收端
 }
  
 impl fmt::Display for Leader {
@@ -36,9 +42,11 @@ impl fmt::Display for Leader {
 } 
 
 impl Leader {
+	//创建领舞者
 	fn new(id :i32,dance_cnt: i32) -> Leader{
 		let (_,rx) = channel();
-		let mut leader = Leader{id:id, 
+		let mut leader = Leader{
+			id:id, 
 			dance_confirmed: Vec::<i32>::new() , 
 			senders: Vec::<Arc<Mutex<Sender<Invitation>>>>::new(),
 			receiver: rx
@@ -49,6 +57,7 @@ impl Leader {
 		leader
 	} 
 	
+	//领舞者为每支舞蹈挑选伴舞
 	fn run(&mut self ){ 
 		println!("{} is ready", self);
 		let mut rng = rand::thread_rng();  
@@ -73,7 +82,8 @@ impl Leader {
 			} 
 			 for follower_id in &senders{
 			 	//发送邀请 
-			 	let inv = Invitation{leader_id: self.id,
+			 	let inv = Invitation{
+			 		leader_id: self.id,
 			 		follower_id: *follower_id, 
 			 		dance_type_id: *dance_type_id 
 		 		} ;  
@@ -102,14 +112,16 @@ impl Leader {
 	}
 }
 
- 
+//=============================================================================
+//  伴舞者
+//============================================================================= 
 struct Follower{
-	id :i32, 
-	dance_confirmed: Vec<i32>,
-	leader_dance: Vec<i32>,
-	senders: Vec<Arc<Mutex<Sender<InviResult>>>>,
-	receiver: Receiver<Invitation>,
-	finish: bool
+	id :i32, 										//id
+	dance_confirmed: Vec<i32>,						//索引是danceType，值是leaderId
+	leader_dance: Vec<i32>,							//索引是leaderId，值是已经match过的次数count
+	senders: Vec<Arc<Mutex<Sender<InviResult>>>>,	//所有领舞者接收邀请结果时对应的发送端
+	receiver: Receiver<Invitation>,					//自己接受邀请的接收端
+	should_end: bool								//是否应该终止
 }
 
 impl fmt::Display for Follower {
@@ -120,6 +132,7 @@ impl fmt::Display for Follower {
 } 
 
 impl Follower{ 
+	//创建伴舞
 	fn new(id :i32,dance_cnt :i32,leader_cnt :i32 ) -> Follower{
 		let (_,rx) = channel();
 		let mut follower = Follower{id:id, 
@@ -127,7 +140,7 @@ impl Follower{
 			leader_dance: Vec::<i32>::new(),
 			senders: Vec::<Arc<Mutex<Sender<InviResult>>>>::new(),
 			receiver: rx,
-			finish: false
+			should_end: false
 			};
 		for _ in 0..dance_cnt {
 			follower.dance_confirmed.push(-1);
@@ -138,6 +151,7 @@ impl Follower{
 		follower 
 	}  
 	
+	//回复邀请处理结果至res
 	fn reply(&self, inv :&Invitation, res :&mut InviResult){ 
 		if self.dance_confirmed[inv.dance_type_id as usize] >=0 {
 			*res = InviResult::Reject;
@@ -153,15 +167,16 @@ impl Follower{
 		}  
 	}
 	
+	//已就绪，接受各领舞者的邀请
 	fn run(&mut self){ 
-		self.finish = false;
+		self.should_end = false;
 		println!("{} is ready",self);
-		while !self.finish {   
+		while !self.should_end {   
 			let inv =  match self.receiver.recv() { 
 				Err(e) =>{println!("{}接收时发生错误，原因:{}",self,e);continue;}
 				Ok(inv) => {
 					match inv.leader_id{
-						-1 => {self.finish=true;continue;}
+						-1 => {self.should_end=true;continue;}
 						_ => inv
 					}
 				}
@@ -187,6 +202,10 @@ impl Follower{
 //	}
 //}
 
+
+//=============================================================================
+//  邀请结果枚举类型
+//============================================================================= 
 #[derive(Debug,PartialEq)]
 enum InviResult{
 	Init,
@@ -194,6 +213,10 @@ enum InviResult{
 	Accept
 }
 
+
+//=============================================================================
+//  邀请体
+//============================================================================= 
 #[derive(Debug,Clone,Copy)]
 struct Invitation{
 	leader_id : i32,
@@ -209,8 +232,11 @@ impl fmt::Display for Invitation {
 }  
 
 
-   
-fn main() {  
+//=============================================================================
+//  主程序
+//============================================================================= 
+fn main() { 
+    //定义多少种舞蹈
 	let  dance_types   = [
 		DanceType{id:0,name:"Waltz".to_string()},
 		DanceType{id:1,name:"Tango".to_string()},
@@ -220,134 +246,134 @@ fn main() {
 		DanceType{id:5,name:"Samba".to_string()},
 		DanceType{id:6,name:"ChaCha".to_string()},
 		DanceType{id:7,name:"Jive".to_string()} 
-	];   
-		let leader_cnt : i32 = {
-			let mut leader_cnt_input = String::new();
-			println!("Please input the leader number(type 'q' to quit):");
-			match io::stdin().read_line(&mut leader_cnt_input) {
-				Err(e) => { println!("输入有误{}",e);return;} 
-				Ok(_)=> {
-					match leader_cnt_input.trim(){
-						"q" => return,
-						str => match str.parse::<i32>(){
-							Err(e) => { println!("{}",e);return;}
-							Ok(i)=> i
-							}
+	]; 
+  
+  	//根据用户输入，创建对应数量的领舞者
+	let leader_cnt : i32 = {
+		let mut leader_cnt_input = String::new();
+		println!("Please input the leader number(type 'q' to quit):");
+		match io::stdin().read_line(&mut leader_cnt_input) {
+			Err(e) => { println!("输入有误{}",e);return;} 
+			Ok(_)=> {
+				match leader_cnt_input.trim(){
+					"q" => return,
+					str => match str.parse::<i32>(){
+						Err(e) => { println!("{}",e);return;}
+						Ok(i)=> i
 						}
 					}
-			} 
-		};
-		
-		let follower_cnt : i32 = {
-			let mut follower_cnt_input = String::new();
-			println!("Please input the follower number(type 'q' to quit):");
-			match io::stdin().read_line(&mut follower_cnt_input) {
-				Err(e) => { println!("输入有误{}",e);return;} 
-				Ok(_)=> {
-					match follower_cnt_input.trim(){
-						"q" => return,
-						str => match str.parse::<i32>(){
-							Err(e) => { println!("{}",e);return;}
-							Ok(i)=> i
-							}
+				}
+		} 
+	};
+	let leaders = (0..leader_cnt).map(|i|
+		Arc::new(Mutex::new(Leader::new(i,dance_types.len() as i32)))
+	).collect::<Vec<_>>();
+	
+	
+	//根据用户输入，创建对应数量的伴舞者
+	let follower_cnt : i32 = {
+		let mut follower_cnt_input = String::new();
+		println!("Please input the follower number(type 'q' to quit):");
+		match io::stdin().read_line(&mut follower_cnt_input) {
+			Err(e) => { println!("输入有误{}",e);return;} 
+			Ok(_)=> {
+				match follower_cnt_input.trim(){
+					"q" => return,
+					str => match str.parse::<i32>(){
+						Err(e) => { println!("{}",e);return;}
+						Ok(i)=> i
 						}
 					}
-			} 
-		};
-		 
-		 
-		 
-		let followers = (0..follower_cnt).map(|i|
-			Arc::new(Mutex::new(Follower::new(i,dance_types.len() as i32,leader_cnt)))
-		).collect::<Vec<_>>();
-		
-		
-		let leaders = (0..leader_cnt).map(|i|
-			Arc::new(Mutex::new(Leader::new(i,dance_types.len() as i32)))
-		).collect::<Vec<_>>();
-		
-		 
-		
-		for follower in &followers {
-			let (tx,rx) = channel();
-			follower.lock().unwrap().receiver = rx;
-			let sender = Arc::new(Mutex::new(tx));
-			for leader in &leaders {
-				leader.lock().unwrap().senders.push(sender.clone());
-			}
-		}
-		 
-		
+				}
+		} 
+	}; 
+	let followers = (0..follower_cnt).map(|i|
+		Arc::new(Mutex::new(Follower::new(i,dance_types.len() as i32,leader_cnt)))
+	).collect::<Vec<_>>();
+	 
+	    
+	//分别设置领舞者和伴舞者对邀请的发送端和接收端
+	for follower in &followers {
+		let (tx,rx) = channel();
+		follower.lock().unwrap().receiver = rx;
+		let sender = Arc::new(Mutex::new(tx));
 		for leader in &leaders {
-			let (tx,rx) = channel();
-			leader.lock().unwrap().receiver = rx;
-			let sender = Arc::new(Mutex::new(tx));
-			for follower in &followers {
-				follower.lock().unwrap().senders.push(sender.clone());
+			leader.lock().unwrap().senders.push(sender.clone());
+		}
+	}
+	for leader in &leaders {
+		let (tx,rx) = channel();
+		leader.lock().unwrap().receiver = rx;
+		let sender = Arc::new(Mutex::new(tx));
+		for follower in &followers {
+			follower.lock().unwrap().senders.push(sender.clone());
+		}
+	}
+	
+	//各伴舞者准备就绪，接受邀请！
+	let follower_handlers = followers.iter().map(|follower| {
+		let follower = follower.clone(); 
+		thread::spawn(move || {	
+				let mut follower = follower.lock().unwrap();
+				follower.run();
+				})
+		}
+		).collect::<Vec<_>>();
+	
+	//各领舞者准备就绪，开始发送邀请！
+	let leader_handlers = leaders.iter().map(|leader| {
+			let leader = leader.clone();
+			 thread::spawn(move || { 
+				let mut leader = leader.lock().unwrap();    
+				leader.run();
+				})
+			}
+		    ).collect::<Vec<_>>(); 
+	 
+	//等待所有领舞者完成所有舞蹈的邀请 
+	for handler in leader_handlers {
+		match handler.join(){
+			Err(e) => println!("线程结束时出错，原因:{:?}",e),
+			Ok(_) => {}
+		}
+	} 
+	println!("leader已全部结束！");
+	
+	//发送结束信号给各伴舞者
+	if followers.len() > 0 && leaders.len() > 0 { 
+		let leader = leaders[0].lock().unwrap();
+		for sender in &leader.senders {
+			match sender.lock().unwrap().send(Invitation{leader_id :-1,follower_id :-1, dance_type_id :-1}){
+				Err(e) => {println!("发送空邀请时错误，原因:{}",e);}
+				_ => {}
 			}
 		}
-		
-		
-		let follower_handlers = followers.iter().map(|follower| {
-			let follower = follower.clone(); 
-			thread::spawn(move || {	
-					let mut follower = follower.lock().unwrap();
-					follower.run();
-					})
-			}
-			).collect::<Vec<_>>();
-		
-		let leader_handlers = leaders.iter().map(|leader| {
-				let leader = leader.clone();
-				 thread::spawn(move || { 
-					let mut leader = leader.lock().unwrap();    
-					leader.run();
-					})
-				}
-			    ).collect::<Vec<_>>(); 
-		 
-		 
-		for handler in leader_handlers {
-			match handler.join(){
-				Err(e) => println!("线程结束时出错，原因:{:?}",e),
-				Ok(_) => {}
-			}
-		} 
-		println!("leader已全部结束！");
-		
-		if followers.len() > 0 && leaders.len() > 0 {
-			let leader   = leaders[0].clone();
-			let leader = leader.lock().unwrap();
-			for sender in &leader.senders {
-				match sender.lock().unwrap().send(Invitation{leader_id :-1,follower_id :-1, dance_type_id :-1}){
-					Err(e) => {println!("发送空邀请时错误，原因:{}",e);}
-					_ => {}
-				}
-			}
+	}
+	
+	//等待所有伴舞者结束准备状态 
+	for handler in follower_handlers {
+		match handler.join(){
+			Err(e) => println!("线程结束时出错，原因:{:?}",e),
+			Ok(_) => {}
 		}
-		
-		for handler in follower_handlers {
-			match handler.join(){
-				Err(e) => println!("线程结束时出错，原因:{:?}",e),
-				Ok(_) => {}
+	} 
+	println!("follower已全部结束！");
+	
+	
+	//打印结果
+	for i in (0..leader_cnt) {
+		let leader = leaders[i as usize].lock().unwrap();
+		println!("Leader :{:?}" ,i);
+		for j in (0..leader.dance_confirmed.len()) {
+			let follower_id = leader.dance_confirmed[j];
+			if  follower_id < 0  {
+				println!("{:35} with --", dance_types[j]);
+			}
+			else {
+				println!("{:35} with {:?}", dance_types[j], follower_id);
 			}
 		} 
-		println!("follower已全部结束！");
-		
-		for i in (0..leader_cnt) {
-			let leader = leaders[i as usize].lock().unwrap();
-			println!("Leader :{:?}" ,i);
-			for j in (0..leader.dance_confirmed.len()) {
-				let follower_id = leader.dance_confirmed[j];
-				if  follower_id < 0  {
-					println!("{:35} with --", dance_types[j]);
-				}
-				else {
-					println!("{:35} with {:?}", dance_types[j], follower_id);
-				}
-			} 
-			println!("");
-		}   
-		
+		println!("");
+	}   
 		
 }

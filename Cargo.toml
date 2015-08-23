@@ -1,13 +1,13 @@
 [package]
 
-name = "hello_world"
+name = "danceParty"
 version = "0.0.1"
-authors = [ "Your name <you@example.com>" ]
+authors = [ "Michael <tennis_evil@hotmail.com>" ]
 
 [dependencies]
 num = "*"
 rand = "*"
-#time = "*"
+time = "*"
 
 
 [[bin]] 
