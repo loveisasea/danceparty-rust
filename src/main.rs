@@ -8,6 +8,15 @@ use std::sync::mpsc::{Sender,Receiver,channel};
 use std::fmt;
 use rand::distributions::{IndependentSample, Range};
 
+
+//=============================================================================
+//  macro 
+//=============================================================================
+macro_rules! debugprintln {
+    ($fmt:expr) => (if false {print!(concat!($fmt, "\n"))});
+    ($fmt:expr, $($arg:tt)*) => (if false {print!(concat!($fmt, "\n"), $($arg)*)});
+}
+
 //=============================================================================
 //  舞蹈类型   
 //=============================================================================
@@ -59,7 +68,7 @@ impl Leader {
 	
 	//领舞者为每支舞蹈挑选伴舞
 	fn run(&mut self ){ 
-		println!("{} is ready", self);
+		debugprintln!("{} is ready", self);
 		let mut rng = rand::thread_rng();  
 		//随机选取dance_type
 		let mut dances = (0i32..self.dance_confirmed.len() as i32).map(move |x| x).collect::<Vec<_>>();
@@ -87,25 +96,25 @@ impl Leader {
 			 		follower_id: *follower_id, 
 			 		dance_type_id: *dance_type_id 
 		 		} ;  
-		 		println!("{}发送邀请{}...",self,inv); 
+		 		debugprintln!("{}发送邀请{}...",self,inv); 
 		 		match self.senders[*follower_id as usize].lock().unwrap().send(inv){
-		 			Err(e) => { println!("{}发送邀请失败，原因：{}",self,e);continue;}
+		 			Err(e) => { debugprintln!("{}发送邀请失败，原因：{}",self,e);continue;}
 		 			_ => {}
 		 		} 
 		 		
 		 		//接受并处理结果
 		 		let res = match self.receiver.recv(){
-		 			Err(e) => { println!("{}接收回应失败，原因：{}",self,e);continue;}
+		 			Err(e) => { debugprintln!("{}接收回应失败，原因：{}",self,e);continue;}
 		 			Ok(res) => res
 		 		};
 		 		match res {
-		 			InviResult::Init => println!("{}等待超时{}", self,inv), 
+		 			InviResult::Init => debugprintln!("{}等待超时", self), 
 		 			InviResult::Accept => {
-		 				self.dance_confirmed[inv.dance_type_id as usize] = inv.follower_id;
-						println!("{}收到了接受的回应{}====", self, inv);
+		 				self.dance_confirmed[*dance_type_id as usize] = *follower_id;
+						debugprintln!("{}收到了接受的回应====", self);
 						break;
 		 			}
-		 			InviResult::Reject => println!("{}收到了拒绝邀请的回应{}====", self,inv)
+		 			InviResult::Reject => debugprintln!("{}收到了拒绝邀请的回应====", self)
 		 		} 
 			 }
 		}
@@ -155,25 +164,25 @@ impl Follower{
 	fn reply(&self, inv :&Invitation, res :&mut InviResult){ 
 		if self.dance_confirmed[inv.dance_type_id as usize] >=0 {
 			*res = InviResult::Reject;
-			println!("{}拒绝邀请，因为已和{}参与过舞蹈{}",self,self.dance_confirmed[inv.dance_type_id as usize],inv.dance_type_id);
+			debugprintln!("{}拒绝邀请，因为已和{}参与过舞蹈{}",self,self.dance_confirmed[inv.dance_type_id as usize],inv.dance_type_id);
 		} 
 		else if self.leader_dance[inv.leader_id as usize] >= 2 {
 			*res = InviResult::Reject;
-			println!("{}拒绝邀请，因为已接受过{}的{}次邀请",self,inv.leader_id,2);
+			debugprintln!("{}拒绝邀请，因为已接受过{}的{}次邀请",self,inv.leader_id,2);
 		}
 		else{
 			*res = InviResult::Accept;
-			println!("{}接受邀请{}",self, *inv);
+			debugprintln!("{}接受邀请{}",self, *inv);
 		}  
 	}
 	
 	//已就绪，接受各领舞者的邀请
 	fn run(&mut self){ 
 		self.should_end = false;
-		println!("{} is ready",self);
+		debugprintln!("{} is ready",self);
 		while !self.should_end {   
 			let inv =  match self.receiver.recv() { 
-				Err(e) =>{println!("{}接收时发生错误，原因:{}",self,e);continue;}
+				Err(e) =>{debugprintln!("{}接收时发生错误，原因:{}",self,e);continue;}
 				Ok(inv) => {
 					match inv.leader_id{
 						-1 => {self.should_end=true;continue;}
@@ -181,7 +190,7 @@ impl Follower{
 					}
 				}
 			};
-			println!("{}收到邀请{}",self,inv);
+			debugprintln!("{}收到邀请{}",self,inv);
 			let mut res = InviResult::Init;
 			self.reply(& inv,&mut res);
 			if res == InviResult::Accept {
@@ -189,7 +198,7 @@ impl Follower{
 				self.leader_dance[inv.leader_id as usize] +=1;
 			}
 			match self.senders[inv.leader_id as usize].lock().unwrap().send(res){
-	 			Err(e) => { println!("{}发送回应失败，原因：{}",self,e);continue;}
+	 			Err(e) => { debugprintln!("{}发送回应失败，原因：{}",self,e);continue;}
 	 			_ => {}
 	 		} 
 		} 		 
@@ -221,7 +230,7 @@ enum InviResult{
 struct Invitation{
 	leader_id : i32,
 	follower_id : i32,
-	dance_type_id: i32 
+	dance_type_id: i32
 }
 
 impl fmt::Display for Invitation {
@@ -258,7 +267,7 @@ fn main() {
 				match leader_cnt_input.trim(){
 					"q" => return,
 					str => match str.parse::<i32>(){
-						Err(e) => { println!("{}",e);return;}
+						Err(e) => { debugprintln!("{}",e);return;}
 						Ok(i)=> i
 						}
 					}
@@ -280,7 +289,7 @@ fn main() {
 				match follower_cnt_input.trim(){
 					"q" => return,
 					str => match str.parse::<i32>(){
-						Err(e) => { println!("{}",e);return;}
+						Err(e) => { debugprintln!("{}",e);return;}
 						Ok(i)=> i
 						}
 					}
@@ -291,6 +300,8 @@ fn main() {
 		Arc::new(Mutex::new(Follower::new(i,dance_types.len() as i32,leader_cnt)))
 	).collect::<Vec<_>>();
 	 
+	
+	let start = time::precise_time_ns();
 	    
 	//分别设置领舞者和伴舞者对邀请的发送端和接收端
 	for follower in &followers {
@@ -333,18 +344,18 @@ fn main() {
 	//等待所有领舞者完成所有舞蹈的邀请 
 	for handler in leader_handlers {
 		match handler.join(){
-			Err(e) => println!("线程结束时出错，原因:{:?}",e),
+			Err(e) => debugprintln!("线程结束时出错，原因:{:?}",e),
 			Ok(_) => {}
 		}
 	} 
-	println!("leader已全部结束！");
+	debugprintln!("leader已全部结束！");
 	
 	//发送结束信号给各伴舞者
 	if followers.len() > 0 && leaders.len() > 0 { 
 		let leader = leaders[0].lock().unwrap();
 		for sender in &leader.senders {
 			match sender.lock().unwrap().send(Invitation{leader_id :-1,follower_id :-1, dance_type_id :-1}){
-				Err(e) => {println!("发送空邀请时错误，原因:{}",e);}
+				Err(e) => {debugprintln!("发送空邀请时错误，原因:{}",e);}
 				_ => {}
 			}
 		}
@@ -353,27 +364,28 @@ fn main() {
 	//等待所有伴舞者结束准备状态 
 	for handler in follower_handlers {
 		match handler.join(){
-			Err(e) => println!("线程结束时出错，原因:{:?}",e),
+			Err(e) => debugprintln!("线程结束时出错，原因:{:?}",e),
 			Ok(_) => {}
 		}
 	} 
-	println!("follower已全部结束！");
+	debugprintln!("follower已全部结束！");
 	
+	let end = time::precise_time_ns();
 	
 	//打印结果
 	for i in (0..leader_cnt) {
 		let leader = leaders[i as usize].lock().unwrap();
-		println!("Leader :{:?}" ,i);
+		debugprintln!("Leader :{:?}" ,i);
 		for j in (0..leader.dance_confirmed.len()) {
 			let follower_id = leader.dance_confirmed[j];
 			if  follower_id < 0  {
-				println!("{:35} with --", dance_types[j]);
+				debugprintln!("{:35} with --", dance_types[j]);
 			}
 			else {
-				println!("{:35} with {:?}", dance_types[j], follower_id);
+				debugprintln!("{:35} with {:?}", dance_types[j], follower_id);
 			}
 		} 
-		println!("");
+		debugprintln!("");
 	}   
-		
+	println!("总用时：{:?}毫秒",((end-start)/1000000) as u32);	
 }
